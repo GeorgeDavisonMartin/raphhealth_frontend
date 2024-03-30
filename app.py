@@ -1,3 +1,5 @@
+import os
+from pathlib import Path
 import streamlit as st
 import pandas as pd
 from joblib import load
@@ -10,7 +12,10 @@ st.set_page_config(
     initial_sidebar_state='auto'
 )
 
-# model = load('GradientBost_model.joblib')
+model_path = Path('/home/gmartin/code/GeorgeDavisonMartin/raphhealth_frontend/raphhealth/GradientBost_model.joblib')
+
+st.write(os.getcwd())
+model = load(model_path)
 
 # Function to check login credentials
 def login_user(username, password):
@@ -69,11 +74,10 @@ def prediction():
 
     # Define the mapping of regions to their corresponding numerical codes
     region_codes = {
+        'North Central': 0,
         'Northeast': 1,
-        'North Central': 2,
-        'South': 3,
-        'West': 4,
-        'Unknown': 5
+        'South': 2,
+        'West': 3
     }
 
     # List of regions to display in the multiselect
@@ -86,28 +90,12 @@ def prediction():
     if selected_regions:
         # Retrieve the codes for the selected regions using a list comprehension
         selected_codes = [region_codes[region] for region in selected_regions]
-
-        # Filter the DataFrame for rows where 'region_mod' matches any of the selected codes
-        filtered_df = df[df['region_mod'].isin(selected_codes)]
+        region_lst = [0,0,0,0]
+        region_lst[int(selected_codes[0])] = 1
 
 
     # User inputs an age
     age_input = st.text_input('Select Age', placeholder='Enter Age In Years (0-65)')
-
-    if age_input:
-        try:
-            # Convert the input to an integer
-            age = int(age_input)
-
-            # Check if the age is within the acceptable range
-            if 0 <= age <= 65:
-                # Filter the DataFrame for rows where 'age_years' is equal to the input age
-                filtered_df = df[df['age_years'] == age]
-            else:
-                st.error('Age out of range. Please enter a value between 0 and 65.')
-        except ValueError:
-            st.error('Invalid input. Please enter a valid age in years.')
-
 
 
     # Define the mapping of genders to their corresponding numerical codes
@@ -119,13 +107,12 @@ def prediction():
     # Streamlit multiselect widget for selecting genders
     selected_genders = st.multiselect('Select Gender(s)', list(gender_codes.keys()))
 
-    # Retrieve the codes for the selected genders using a list comprehension
-    selected_codes = [gender_codes[gender] for gender in selected_genders]
-
-    # Filter the DataFrame for rows where 'Gender' matches any of the selected codes
-    if selected_codes:
-        filtered_df = df[df['Gender'].isin(selected_codes)]
-
+    # Check if any regions have been selected
+    if selected_genders:
+        # Retrieve the codes for the selected genders using a list comprehension
+        selected_codes = [gender_codes[gender] for gender in selected_genders]
+        gender_1st = [0,0]
+        gender_1st[int(selected_codes[0])] = 1
 
     # Define the mapping of readable relationship names to their corresponding numerical codes
     relationship_codes = {
@@ -138,26 +125,16 @@ def prediction():
     # Streamlit multiselect widget for selecting relationships
     selected_relationship_names = st.multiselect('Select Relationship to Plan Holder', list(relationship_codes.keys()))
 
-    # Retrieve the codes for the selected relationships
-    selected_codes = [relationship_codes[name] for name in selected_relationship_names]
 
-    # Filter the DataFrame for rows where 'Relationship_To_Primary_Beneficiary' matches any of the selected codes
-    if selected_codes:
-        filtered_df = df[df['Relationship_To_Primary_Beneficiary'].isin(selected_codes)]
-
-
-
-    # User inputs number of previous days in hospital
-    days_input = st.text_input('Lifetime Days In Hospital', placeholder='Enter Lifetime Number of Days Spent In Hospital')
-
-    # Check if a days entered is of a valid format
-    if days_input:
-        # Filter the DataFrame for rows where 'hosp_input' matches the input zipcode
-        filtered_df = df[df['lohs'] == days_input.strip()]
+    # Check if any regions have been selected
+    if selected_relationship_names:
+        # Retrieve the codes for the selected regions using a list comprehension
+        selected_codes = [relationship_codes[name] for name in selected_relationship_names]
+        relationship_lst = [0,0,0,0]
+        relationship_lst[int(selected_codes[0])] = 1
 
 
-
-    # Define the mapping of regions to their corresponding numerical codes
+    # Define the mapping of previously admitted to their corresponding numerical codes
     hosp_codes = {
         'Yes': 1,
         'No': 0,
@@ -166,14 +143,18 @@ def prediction():
     # List of regions to display in the multiselect
     hosped = list(hosp_codes.keys())
 
-    # Streamlit multiselect widget for selecting regions
-    selected_hosped = st.multiselect('Has Patient Previously had an Overnight Hospital Visit?', hosped)
+    # Streamlit multiselect widget for selecting previously admitted
+    selected_hosped = st.multiselect('Has Patient Previously been Hospitalised?', hosped)
 
-    # Check if any regions have been selected
+    # Check if any values have been selected
     if selected_hosped:
-        # Retrieve the codes for the selected regions using a list comprehension
+        # Retrieve the codes for the selected values using a list comprehension
         selected_hosped = [hosp_codes[hosp] for hosp in selected_hosped]
+        hosped_1st = [0,0]
+        hosped_1st[int(selected_hosped[0])] = 1
 
+    # User inputs number of previous days in hospital
+    days_input = st.text_input('Lifetime Days In Hospital', placeholder='Enter Lifetime Number of Days Spent In Hospital')
 
 
     # Mapping of dataframe columns to readable disease names
@@ -212,36 +193,25 @@ def prediction():
         else:
             selected_disease_list.append(0)
 
-    st.text(f'printing selected dis columns {selected_disease_list}')
-
-    # Filter the dataframe for rows where any of the selected diseases is marked 'Positive'
-    # if selected_disease_list:
-
-    #     mask = df[selected_disease_list].eq(1).any(axis=1)
-    #     filtered_df = df[mask]
-    #     st.text(f'what does it look like {filtered_df}')
-    # # Button to confirm the input and selection
-
-        # st.title(f"Expected cost: ${round(df[df['Patient_ID'] == float(df['Patient_ID'])]['Pay'].values[0],2)} USD")
     if st.button('Submit'):
 # DataFrame should match the exact format (order and number of columns) expected by model
         initial_list_wo_dis = pd.DataFrame({
             'age_years': [float(age_input)],
-            'relationship_to_primary_beneficiary': [float(relationship_to_primary_beneficiary)],
-            'clinic_visits': [float(clinic_visits)],
-            'clinic_inpatient': [float(clinic_inpatient)],
-            'region_mod_northcentral': [float(region_mod_northcentral)],
-            'region_mod_northeast': [float(region_mod_northeast)],
-            'region_mod_south': [float(region_mod_south)],
-            'region_mod_west': [float(region_mod_west)],
-            'gender_female': [float(gender_female)],
-            'gender_male': [float(gender_male)],
-            'both_clinic': [float(both_clinic)],
-            'cci': [int(cci)]
+            'relationship_to_primary_beneficiary': [float(relationship_lst[0])],
+            'clinic_visits': [float(days_input)],
+            'clinic_inpatient': [float(hosped_1st[0])],
+            'region_mod_northcentral': [float(region_lst[0])],
+            'region_mod_northeast': [float(region_lst[1])],
+            'region_mod_south': [float(region_lst[2])],
+            'region_mod_west': [float(region_lst[3])],
+            'gender_female': [float(gender_1st[0])],
+            'gender_male': [float(gender_1st[1])],
+            'both_clinic': [float(0)],
+            'cci': [int(0)]
         })
-        inital_list_wo_dis.extend(selected_disease_list)
+        initial_list_wo_dis.extend(selected_disease_list)
         # Make prediction
-        predicted_cost = model.predict(input_data)
+        predicted_cost = model.predict(initial_list_wo_dis)
 
         # Display the prediction
         st.title(f"Expected Cost: ${round(predicted_cost[0], 2)} USD")
@@ -359,7 +329,7 @@ def about_us():
     """)
 
     # George Martin
-    st.subheader("George Martin: Data & the Front End")
+    st.subheader("George Martin: Data & Front End")
 
     # Add an image of George
     st.image("GeorgeProfile.JPG", width=200)
