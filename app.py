@@ -3,6 +3,8 @@ from pathlib import Path
 import streamlit as st
 import pandas as pd
 from joblib import load
+import numpy as np
+import pickle
 
 # Set page configuration
 st.set_page_config(
@@ -12,10 +14,15 @@ st.set_page_config(
     initial_sidebar_state='auto'
 )
 
-model_path = Path('/home/gmartin/code/GeorgeDavisonMartin/raphhealth_frontend/raphhealth/GradientBost_model.joblib')
+model_path = Path('model.pkl')
 
-st.write(os.getcwd())
 model = load(model_path)
+
+
+#####################################################
+################  LOGIN PAGE  ######################
+#####################################################
+
 
 # Function to check login credentials
 def login_user(username, password):
@@ -35,6 +42,12 @@ def login_form():
                 st.experimental_rerun()
             else:
                 st.error("Incorrect username or password. Please try again.")
+
+
+#####################################################
+################  HOME PAGE  ######################
+#####################################################
+
 
 # Define page functions
 def landing_page():
@@ -67,10 +80,17 @@ def landing_page():
     elif st.button('Show About Us'):
         about_us()
 
+
+#####################################################
+################  PREDICTIONS  ######################
+#####################################################
+
+
 def prediction():
-    st.markdown("<h1 style='text-align: center; color: black;'>Input Customer Data:</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: black;'>Input Customer Data</h1>", unsafe_allow_html=True)
     #df = pd.read_csv('data/grouped_ver_1.csv')
 
+################  REGION  ########################
 
     # Define the mapping of regions to their corresponding numerical codes
     region_codes = {
@@ -89,14 +109,20 @@ def prediction():
     # Check if any regions have been selected
     if selected_regions:
         # Retrieve the codes for the selected regions using a list comprehension
-        selected_codes = [region_codes[region] for region in selected_regions]
+        selected_region_codes = [region_codes[region] for region in selected_regions]
         region_lst = [0,0,0,0]
-        region_lst[int(selected_codes[0])] = 1
+        region_lst[int(selected_region_codes[0])] = 1
 
+################  AGE  ########################
 
     # User inputs an age
     age_input = st.text_input('Select Age', placeholder='Enter Age In Years (0-65)')
 
+################  number of clinic visits ########################
+    clinic_vistis_input = st.text_input('Enter the number of clinic visits last year',
+                                        placeholder='Enter number of clinic visits')
+
+################  GENDER  ########################
 
     # Define the mapping of genders to their corresponding numerical codes
     gender_codes = {
@@ -110,9 +136,11 @@ def prediction():
     # Check if any regions have been selected
     if selected_genders:
         # Retrieve the codes for the selected genders using a list comprehension
-        selected_codes = [gender_codes[gender] for gender in selected_genders]
+        selected_gender_codes = [gender_codes[gender] for gender in selected_genders]
         gender_1st = [0,0]
-        gender_1st[int(selected_codes[0])] = 1
+        gender_1st[int(selected_gender_codes[0])] = 1
+
+################  RELATIONSHIP TO PRIMARY  ########################
 
     # Define the mapping of readable relationship names to their corresponding numerical codes
     relationship_codes = {
@@ -129,10 +157,11 @@ def prediction():
     # Check if any regions have been selected
     if selected_relationship_names:
         # Retrieve the codes for the selected regions using a list comprehension
-        selected_codes = [relationship_codes[name] for name in selected_relationship_names]
+        selected_relationship_codes = [relationship_codes[name] for name in selected_relationship_names]
         relationship_lst = [0,0,0,0]
-        relationship_lst[int(selected_codes[0])] = 1
+        relationship_lst[int(selected_relationship_codes[0])] = 1
 
+################  PREVIOUSLY HOPITALISED  ########################
 
     # Define the mapping of previously admitted to their corresponding numerical codes
     hosp_codes = {
@@ -156,114 +185,134 @@ def prediction():
     # User inputs number of previous days in hospital
     days_input = st.text_input('Lifetime Days In Hospital', placeholder='Enter Lifetime Number of Days Spent In Hospital')
 
+################  DISEASES  ########################
 
-    # Mapping of dataframe columns to readable disease names
+    # Define the mapping of readable disease names to their corresponding logical names
     disease_name_mapping = {
-        'respiratory_d': 'Respiratory Disease',
-        'hypertension': 'Hypertension',
-        'diabetes_melitus': 'Diabetes Melitus',
-        'dementia': 'Dementia',
-        'kidney_disease': 'Kidney Disease',
-        'liver_disease': 'Liver Disease',
-        'diarrheal_disease': 'Diarrheal Disease',
-        'myocardial_infarction': 'Myocardial Infarction',
-        'cardiovascular_d': 'Cardiovascular Disease',
-        'chf': 'Heart Failure',
-        'pvd': 'Peripherial Vascular Disease',
-        'cancer': 'Non-Metastatic Cancer',
-        'metastasis': 'Metastatic Cancer',
-        'connective_tissue_disease': 'Autoimmune Disease',
-        'puc': 'Peptic Ulcer',
-        'hemiplegia': 'Stroke',
-        'lymphoma': 'Lymphoma',
-        'aids': 'AIDS',
-        'trauma': 'Previous Fracture'
+        'Respiratory Disease': 'respiratory_d',
+        'Hypertension': 'hypertension',
+        'Diabetes Melitus': 'diabetes_melitus',
+        'Dementia': 'dementia',
+        'Kidney Disease': 'kidney_disease',
+        'Liver Disease': 'liver_disease',
+        'Diarrheal Disease': 'diarrheal_disease',
+        'Myocardial Infarction': 'myocardial_infarction',
+        'Cardiovascular Disease': 'cardiovascular_d',
+        'Heart Failure': 'chf',
+        'Peripherial Vascular Disease': 'pvd',
+        'Non-Metastatic Cancer': 'cancer',
+        'Metastatic Cancer': 'metastasis',
+        'Autoimmune Disease': 'connective_tissue_disease',
+        'Peptic Ulcer': 'puc',
+        'Stroke': 'hemiplegia',
+        'Lymphoma': 'lymphoma',
+        'AIDS': 'aids',
+        'Previous Fracture': 'trauma'
     }
 
-    # List of readable disease names for the multiselect widget
-    readable_disease_names = list(disease_name_mapping.values())
+    # Streamlit multiselect widget for selecting diseases
+    selected_disease_names = st.multiselect(
+        'Select Diseases Diagnosed to Patient',
+        list(disease_name_mapping.keys()),
+        key='disease_selection'  # Providing a unique key
+    )
 
-    # Create a multiselect box for selecting diseases with readable names
-    selected_readable_names = st.multiselect('Select Positive Diseases', readable_disease_names)
-    selected_disease_list=[]
-    # Map the readable names back to the dataframe's column names
-    for key, value in disease_name_mapping.items():
-        if value in selected_readable_names:
-            selected_disease_list.append(1)
-        else:
-            selected_disease_list.append(0)
+    # Initialize disease_lst with zeros for all diseases
+    disease_lst = [0] * len(disease_name_mapping)
+
+    # Update disease_lst based on selected diseases
+    if selected_disease_names:
+        for name in selected_disease_names:
+            # Find the index for each selected disease from disease_name_mapping
+            index = list(disease_name_mapping.keys()).index(name)
+            # Set the corresponding position in disease_lst to 1
+            disease_lst[index] = 1
+
 
     if st.button('Submit'):
+        # Validate age_input before using it in the model
+        try:
+        # Convert age_input to float, but use np.nan if age_input is empty or invalid
+            age_input_value = float(age_input) if age_input and age_input.replace('.','',1).isdigit() else np.nan
+        except ValueError:
+            st.error("Please enter a valid age in years.")
+            return  # Stop execution if age_input is invalid
+
+        # Validate days_input before using it in the model
+        try:
+        # Convert days_input to float, but use np.nan if days_input is empty or invalid
+            days_input_value = float(days_input) if days_input and days_input.replace('.','',1).isdigit() else np.nan
+        except ValueError:
+            st.error("Please enter a valid age in years.")
+            return
+
+        try:
+           clinic_vistis_input = float(clinic_vistis_input) if clinic_vistis_input and clinic_vistis_input.replace('.','',1).isdigit() else np.nan
+        except ValueError:
+            st.error("Please enter a valid number of clinic visits")
+            return  # Stop execution if age_input is invalid
+
 # DataFrame should match the exact format (order and number of columns) expected by model
         initial_list_wo_dis = pd.DataFrame({
-            'age_years': [float(age_input)],
+            'gender_male': [float(gender_1st[1])],
             'relationship_to_primary_beneficiary': [float(relationship_lst[0])],
-            'clinic_visits': [float(days_input)],
+            'age_years': [float(age_input_value)],
+            'clinic_visits': [float(clinic_vistis_input)], # need to have this on the input page for clinic visits
+            'myocardial_infarction': [int(disease_lst[7])],
+            'chf': [int(disease_lst[9])],
+            'pvd': [int(disease_lst[10])],
+            'cardiovascular_d': [int(disease_lst[8])],
+            'respiratory_d': [int(disease_lst[0])],
+            'hypertension': [int(disease_lst[1])],
+            'diabetes_melitus': [int(disease_lst[2])],
+            'dementia': [int(disease_lst[3])],
+            'kidney_disease': [int(disease_lst[4])],
+            'liver_disease': [int(disease_lst[5])],
+            'diarrheal_disease': [int(disease_lst[6])],
+            'cancer': [int(disease_lst[11])],
+            'metastasis': [int(disease_lst[12])],
+            'connective_tissue_disease': [int(disease_lst[13])],
+            'puc': [int(disease_lst[14])],
+            'hemiplegia': [int(disease_lst[15])],
+            'lymphoma': [int(disease_lst[16])],
+            'aids': [int(disease_lst[17])],
+            'lohs': [float(days_input_value)],
             'clinic_inpatient': [float(hosped_1st[0])],
             'region_mod_northcentral': [float(region_lst[0])],
             'region_mod_northeast': [float(region_lst[1])],
             'region_mod_south': [float(region_lst[2])],
             'region_mod_west': [float(region_lst[3])],
             'gender_female': [float(gender_1st[0])],
-            'gender_male': [float(gender_1st[1])],
+            'trauma': [int(disease_lst[18])],
             'both_clinic': [float(0)],
             'cci': [int(0)]
-        })
-        initial_list_wo_dis.extend(selected_disease_list)
+            })
+        # st.write(pd.DataFrame(selected_disease_list).T)
+        # initial_list_wo_dis.extend(selected_disease_list)
         # Make prediction
+
+
+
         predicted_cost = model.predict(initial_list_wo_dis)
+
 
         # Display the prediction
         st.title(f"Expected Cost: ${round(predicted_cost[0], 2)} USD")
 
-'''
-get input variables
-preprocess so input data matches data types/columns, etc
-input variables into model.predict
-'''
 
-#     if st.button('Submit'):
-# # DataFrame should match the exact format (order and number of columns) expected by model
-#         df = pd.DataFrame({
-#             'age_years': [float(age_years)],
-#             'relationship_to_primary_beneficiary': [float(relationship_to_primary_beneficiary)],
-#             'clinic_visits': [float(clinic_visits)],
-#             'myocardial_infarction': [float(myocardial_infarction)],
-#             'chf': [float(chf)],
-#             'pvd': [float(pvd)],
-#             'cardiovascular_d': [float(cardiovascular_d)],
-#             'respiratory_d': [float(respiratory_d)],
-#             'hypertension': [float(hypertension)],
-#             'diabetes_melitus': [float(diabetes_melitus)],
-#             'dementia': [float(dementia)],
-#             'kidney_disease': [float(kidney_disease)],
-#             'liver_disease': [float(liver_disease)],
-#             'diarrheal_disease': [float(diarrheal_disease)],
-#             'cancer': [float(cancer)],
-#             'connective_tissue_disease': [float(connective_tissue_disease)],
-#             'puc': [float(puc)],
-#             'hemiplegia': [float(hemiplegia)],
-#             'lymphoma': [float(lymphoma)],
-#             'clinic_inpatient': [float(clinic_inpatient)],
-#             'region_mod_northcentral': [float(region_mod_northcentral)],
-#             'region_mod_northeast': [float(region_mod_northeast)],
-#             'region_mod_south': [float(region_mod_south)],
-#             'region_mod_west': [float(region_mod_west)],
-#             'gender_female': [float(gender_female)],
-#             'gender_male': [float(gender_male)],
-#             'trauma': [float(trauma)],
-#             'both_clinic': [float(both_clinic)],
-#             'cci': [int(cci)]
-#         })
-#         # Make prediction
-#         predicted_cost = model.predict(input_data)
-
-#         # Display the prediction
-#         st.title(f"Expected Cost: ${round(predicted_cost[0], 2)} USD")
+#####################################################
+################  EDA PAGE  ######################
+#####################################################
 
 
 def eda():
     st.title('EDA Page')
+
+
+#####################################################
+################  ABOUT US PAGE  ######################
+#####################################################
+
 
 def about_us():
     st.title("About Us")
@@ -310,9 +359,6 @@ def about_us():
     st.write("""
     Lorem ipsum dolor sit amet, consectetur adipiscing elit,
     sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
-    Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-    Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
-    Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
     """)
 
     # Panwen Chen
@@ -323,9 +369,10 @@ def about_us():
 
     st.write("""
     Panwen is an experienced insurance broker for many years.
-    In his distinguished career, he mainly dealt with health insurance. Every time when he sees a potential candidate for health insurance,
-    he always asks himself, how can I best help maximise my shareholder’s interest by preventing potential big pay outs?
-    This is his motivation to build Raphael Health - to quickly valuate a candidate’s likely cost to avoid high risk insurance policies.
+    In his distinguished career, he mainly dealt with health insurance.
+    Every time when he sees a potential candidate for health insurance,
+    he always asks himself, how can I best help maximise my shareholder`s interest by preventing potential big pay outs?
+    This is his motivation to build Raphael Health - to quickly valuate a candidate`s likely cost to avoid high risk insurance policies.
     """)
 
     # George Martin
@@ -335,11 +382,12 @@ def about_us():
     st.image("GeorgeProfile.JPG", width=200)
 
     st.write("""
-    Lorem ipsum dolor sit amet, consectetur adipiscing elit,
-    sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
-    Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-    Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
-    Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+    George is the Senior Data Engineer at the Royal Kennel Club,
+    A non-profit organisation dedicated to the health and welfare of dogs.
+    In his role he frequently wrangles and vizualises large datasets to turn data from a resource into
+    a product that can be used for the betternment of his organisation and its objectives.
+    His interest and belief in the ability to leverage big data for positive outcomes in the health space
+    inspired him to join Amer and Panwen on the journey to create Raphael Health.
     """)
 
 
